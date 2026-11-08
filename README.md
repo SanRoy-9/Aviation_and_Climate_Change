@@ -43,7 +43,6 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 ```text
 .
 ├── data/
-│   ├── README.md               # Data inventory, sources, versioning, licences, and citations
 │   └── raw/                    # Raw, unedited data downloaded by automated scripts
 │       ├── eurostat_aviation_ghg_emissions.csv
 │       └── eurostat_aviation_traffic_pax.csv
@@ -56,7 +55,7 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 │   └── figures/                # Output visualizations and verification plots
 │       └── coverage_verification_map.png
 │
-├── requirements.txt            # Python dependencies (pandas, matplotlib)
+│
 └── README.md                   # Root repository overview (this file)
 ```
 
