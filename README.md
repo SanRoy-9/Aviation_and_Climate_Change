@@ -1,11 +1,5 @@
 # Aviation and Climate Change: Greenhouse Gas Emissions, Contrails, and Aircraft Fuel
 
-**Author:** Sanglap Roy  
-**Matriculation Number:** 6385648  
-**Course:** Research Skills / Environmental Data Science  
-**Assignment:** A2 – Data Plan and First Data  
-**Date:** November 2026  
-
 ---
 
 ## 1. Project Overview
@@ -44,7 +38,10 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 
 ---
 
-## 4. Repository Structure├── data/
+## 4. Repository Structure
+
+```text
+├── data/
 │   ├── README.md               # Data inventory, sources, versioning, licences, and citations
 │   └── raw/                    # Raw, unedited data downloaded by automated scripts
 │       ├── eurostat_aviation_ghg_emissions.csv
