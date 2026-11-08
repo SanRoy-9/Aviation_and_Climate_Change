@@ -41,6 +41,7 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 ## 4. Repository Structure
 
 ```text
+.
 ├── data/
 │   ├── README.md               # Data inventory, sources, versioning, licences, and citations
 │   └── raw/                    # Raw, unedited data downloaded by automated scripts
@@ -57,3 +58,52 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 │
 ├── requirements.txt            # Python dependencies (pandas, matplotlib)
 └── README.md                   # Root repository overview (this file)
+```
+
+---
+
+## 5. Source, Version, Licence, Citations
+
+1. **Eurostat (2024a)**
+   - **Citation:** European Commission, Eurostat. (2024). *Air emissions accounts by NACE Rev. 2 activity (Air transport: H51)* [Data file: `env_ac_ainah_r2`]. European Commission. https://ec.europa.eu/eurostat/web/products-datasets/-/env_ac_ainah_r2
+   - **Source:** Statistical Office of the European Union (Eurostat)
+   - **Version:** 2024 Production Release
+   - **Licence:** Creative Commons Attribution 4.0 International (CC-BY 4.0)
+   - **Date Accessed:** 08 November 2026
+
+2. **Eurostat (2024b)**
+   - **Citation:** European Commission, Eurostat. (2024). *Air passenger transport by reporting country* [Data file: `avia_paoc`]. European Commission. https://ec.europa.eu/eurostat/web/products-datasets/-/avia_paoc
+   - **Source:** Statistical Office of the European Union (Eurostat)
+   - **Version:** 2024 Release
+   - **Licence:** Creative Commons Attribution 4.0 International (CC-BY 4.0)
+   - **Date Accessed:** 08 November 2026
+
+3. **ECMWF / Copernicus (2020)**
+   - **Citation:** Hersbach, H., Bell, B., Berrisford, P., et al. (2020). *The ERA5 global reanalysis*. Quarterly Journal of the Royal Meteorological Society, 146(730), 1999–2049. https://doi.org/10.1002/qj.3803
+   - **Source:** Copernicus Climate Change Service (C3S) / ECMWF
+   - **Version:** ERA5.1
+   - **Licence:** Copernicus Open Access Licence
+   - **Date Accessed:** 08 November 2026
+
+4. **Lee et al. (2021)**
+   - **Citation:** Lee, D. S., Fahey, D. W., Skowron, A., et al. (2021). *The contribution of global aviation to anthropogenic climate forcing for 2000 to 2018*. Atmospheric Environment, 244, Article 117834. https://doi.org/10.1016/j.atmosenv.2020.117834
+   - **Source:** Institute of Atmospheric Physics (DLR) / Manchester Metropolitan University (Zenodo Archive)
+   - **Version:** 2000–2018 Matrix
+   - **Licence:** Creative Commons Attribution 4.0 International (CC-BY 4.0)
+   - **Date Accessed:** 08 November 2026
+
+---
+
+## 6. References
+
+1. **Eurostat. (2024a).** *Air emissions accounts by NACE Rev. 2 activity (Air transport: H51)* [Data file: `env_ac_ainah_r2`]. European Commission. https://ec.europa.eu/eurostat/web/products-datasets/-/env_ac_ainah_r2
+2. **Eurostat. (2024b).** *Air passenger transport by reporting country* [Data file: `avia_paoc`]. European Commission. https://ec.europa.eu/eurostat/web/products-datasets/-/avia_paoc
+3. **Hersbach, H., Bell, B., Berrisford, P., et al. (2020).** *The ERA5 global reanalysis*. Quarterly Journal of the Royal Meteorological Society, 146(730), 1999–2049. https://doi.org/10.1002/qj.3803
+4. **Lee, D. S., Fahey, D. W., Skowron, A., et al. (2021).** *The contribution of global aviation to anthropogenic climate forcing for 2000 to 2018*. Atmospheric Environment, 244, Article 117834. https://doi.org/10.1016/j.atmosenv.2020.117834
+
+---
+
+## Author
+
+- **Name:** Sanglap Roy  
+- **Date:** 08 November 2026
