@@ -61,7 +61,7 @@ Although modern airframe and engine designs continuously improve fuel efficiency
 
 ---
 
-## 5. Source, Version, Licence, Citations
+## 5. Source, Version, Licence, Citations, Date
 
 1. **Eurostat (2024a)**
    - **Citation:** European Commission, Eurostat. (2024). *Air emissions accounts by NACE Rev. 2 activity (Air transport: H51)* [Data file: `env_ac_ainah_r2`]. European Commission. https://ec.europa.eu/eurostat/web/products-datasets/-/env_ac_ainah_r2
