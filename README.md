@@ -311,8 +311,7 @@ flowchart TD
 ## Author
 
 * **Name:** Sanglap Roy  
-* **Matriculation No.:** 6385648  
-* **Last Updated:** November 2026  
+ 
 
 ### Data Sources
 * Eurostat Air Transport GHG Accounts (`env_ac_ainah_r2`)
