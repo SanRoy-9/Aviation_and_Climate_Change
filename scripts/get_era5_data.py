@@ -29,7 +29,7 @@ def main():
     checksums = []
 
     for year in YEARS:
-        out_file = ERA5_DIR / f"era5_europe_250_300hPa_{year}.nc"
+        out_file = ERA5 / f"era5_europe_250_300hPa_{year}.nc"
         if out_file.exists() and out_file.stat().st_size > 10_000:
             print(f"[SKIP] {out_file.name} already exists.")
             checksums.append(f"{sha256_sum(out_file)}  {out_file.name}")
