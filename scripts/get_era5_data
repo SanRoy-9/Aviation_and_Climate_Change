@@ -1,6 +1,6 @@
 import hashlib
 from pathlib import Path
-import cdsapi
+# import cdsapi
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ERA5 = BASE_DIR / "data" / "raw_data" / "ERA5"
