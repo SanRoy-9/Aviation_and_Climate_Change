@@ -1,0 +1,64 @@
+import hashlib
+from pathlib import Path
+import cdsapi
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ERA5 = BASE_DIR / "data" / "raw_data" / "ERA5"
+ERA5.mkdir(parents=True, exist_ok=True)
+CHECKSUM_FILE =  "ERA5" / "era5_checksums.sha256"
+
+YEARS = [str(y) for y in range(2008, 2024)]
+MONTHS = [f"{m:02d}" for m in range(1, 13)]
+AREA = [70, -15, 34, 35]  # [North, West, South, East]
+
+
+def sha256_sum(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def main():
+    print("=" * 65)
+    print("STEP 02: DOWNLOADING ERA5 250/300 hPa DATA (2008-2023)")
+    print("=" * 65)
+
+    client = cdsapi.Client()
+    checksums = []
+
+    for year in YEARS:
+        out_file = ERA5_DIR / f"era5_europe_250_300hPa_{year}.nc"
+        if out_file.exists() and out_file.stat().st_size > 10_000:
+            print(f"[SKIP] {out_file.name} already exists.")
+            checksums.append(f"{sha256_sum(out_file)}  {out_file.name}")
+            continue
+
+        print(f"[DOWNLOADING] Year {year} ...")
+        request = {
+            "product_type": ["monthly_averaged_reanalysis"],
+            "variable": [
+                "temperature",
+                "relative_humidity",
+                "fraction_of_cloud_cover",
+            ],
+            "pressure_level": ["250", "300"],
+            "year": [year],
+            "month": MONTHS,
+            "time": ["00:00"],
+            "data_format": "netcdf",
+            "download_format": "unarchived",
+            "area": AREA,
+        }
+        client.retrieve("reanalysis-era5-pressure-levels-monthly-means", request, str(out_file))
+        digest = sha256_sum(out_file)
+        checksums.append(f"{digest}  {out_file.name}")
+        print(f"[OK] Saved {out_file.name} ({out_file.stat().st_size:,} bytes)")
+
+    CHECKSUM_FILE.write_text("\n".join(checksums) + "\n", encoding="utf-8")
+    print(f"\n[COMPLETE] ERA5 checksums saved to {CHECKSUM_FILE}")
+
+
+if __name__ == "__main__":
+    main()
