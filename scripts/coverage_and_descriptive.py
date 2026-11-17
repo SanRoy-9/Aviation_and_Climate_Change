@@ -5,6 +5,7 @@ from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 try:
@@ -25,7 +26,6 @@ for d in (PROC_DIR, FIG_DIR, TAB_DIR):
 
 GHG_FILE = RAW_DIR / "eurostat_aviation_ghg_emissions.csv"
 PAX_FILE = RAW_DIR / "eurostat_aviation_traffic_pax.csv"
-
 CORE_STATES = ["AT", "BE", "DE", "ES", "FR", "IE", "IT", "NL", "PL", "PT", "SE"]
 
 AIRPORTS = {
@@ -89,20 +89,15 @@ def load_eurostat_pax() -> pd.DataFrame:
     df["year"] = df["year"].astype(int)
     df = df[(df["year"] >= 2008) & (df["year"] <= 2023)]
 
-    # Total passengers (tra_cov == TOTAL)
     tot = df[df["tra_cov"] == "TOTAL"][["geo", "year", "pax"]].rename(columns={"pax": "pax_total"})
-
-    # Route network distribution Z1: international / extra-EU shares
     cov_piv = df.pivot_table(index=["geo", "year"], columns="tra_cov", values="pax", aggfunc="sum").reset_index()
     for c in ["NAT", "INTL", "INTL_EU", "INTL_NEU", "TOTAL"]:
         if c not in cov_piv.columns:
-            cov_piv[c] = pd.NA
+            cov_piv[c] = np.nan
 
     cov_piv["share_intl_pct"] = (cov_piv["INTL"] / cov_piv["TOTAL"]) * 100.0
     cov_piv["share_extra_eu_pct"] = (cov_piv["INTL_NEU"] / cov_piv["TOTAL"]) * 100.0
-    z1 = cov_piv[["geo", "year", "share_intl_pct", "share_extra_eu_pct"]]
-
-    return tot.merge(z1, on=["geo", "year"], how="left")
+    return tot.merge(cov_piv[["geo", "year", "share_intl_pct", "share_extra_eu_pct"]], on=["geo", "year"], how="left")
 
 
 def plot_fig1_coverage(ghg: pd.DataFrame):
@@ -111,7 +106,6 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
     )
     fig = plt.figure(figsize=(20, 6))
 
-    # Panel 1: Map
     if USE_CARTOPY:
         ax1 = fig.add_subplot(1, 3, 1, projection=ccrs.PlateCarree())
         ax1.set_extent([-15, 35, 34, 70], crs=ccrs.PlateCarree())
@@ -121,7 +115,7 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
         ax1.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.5, edgecolor="#3a506b", zorder=2)
         ax1.plot(
             [-15, 35, 35, -15, -15], [34, 34, 70, 70, 34],
-            color="#e63946", linewidth=2.2, linestyle="--", transform=ccrs.PlateCarree(),
+            color="#e63946", lw=2.2, ls="--", transform=ccrs.PlateCarree(),
             label="Study Area Bounding Box (34°N–70°N, 15°W–35°E)",
         )
         for o, d in CORRIDORS:
@@ -151,7 +145,7 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
         except Exception:
             ax1.fill([-15, 35, 35, -15], [34, 34, 70, 70], facecolor="#1e3048", alpha=0.4)
         ax1.add_patch(mpatches.Rectangle(
-            (-15, 34), 50, 36, lw=2.2, edgecolor="#e63946", facecolor="none", linestyle="--",
+            (-15, 34), 50, 36, lw=2.2, edgecolor="#e63946", facecolor="none", ls="--",
             label="Study Area Bounding Box (34°N–70°N, 15°W–35°E)"
         ))
         for o, d in CORRIDORS:
@@ -168,18 +162,17 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
     ax1.tick_params(colors="#c0d6df")
     ax1.grid(True, linestyle=":", alpha=0.25, color="white")
     ax1.legend(loc="lower left", fontsize=7.5)
-    ax1.set_title("1. Geographic Study Area & Corridors\n(European Airspace: 34°N–70°N, 15°W–35°E)", fontsize=10, fontweight="bold")
+    ax1.set_title("1. Geographic Study Area & Corridors\n(34°N–70°N, 15°W–35°E)", fontsize=10, fontweight="bold")
 
-    # Panel 2: Spatial Emissions
     ax2 = fig.add_subplot(1, 3, 2)
-    pivot[[2019, 2020, 2022]].plot(kind="bar", ax=ax2, colormap="cividis", edgecolor="black", width=0.8)
+    cols = [y for y in [2019, 2020, 2022] if y in pivot.columns]
+    pivot[cols].plot(kind="bar", ax=ax2, colormap="cividis", edgecolor="black", width=0.8)
     ax2.set_title("2. Aviation GHG Emissions in Core States\n(2019 vs. 2020 vs. 2022)", fontsize=10, fontweight="bold")
     ax2.set_ylabel("Thousand Tonnes CO2e", fontsize=9)
     ax2.set_xlabel("Member State", fontsize=9)
     ax2.grid(axis="y", linestyle="--", alpha=0.5)
     ax2.legend(title="Year", fontsize=8)
 
-    # Panel 3: Temporal Coverage (distinct lines, no double counting)
     ax3 = fig.add_subplot(1, 3, 3)
     ts = ghg[ghg["geo"].isin(["EU27_2020", "DE", "FR"])].pivot_table(
         index="year", columns="geo", values="ghg_ths_t", aggfunc="sum"
@@ -232,10 +225,8 @@ def main():
     ghg = load_eurostat_ghg()
     pax = load_eurostat_pax()
     panel = ghg.merge(pax, on=["geo", "year"], how="inner")
-
-    panel_path = PROC_DIR / "eurostat_panel_2008_2023.csv"
-    panel.to_csv(panel_path, index=False)
-    print(f"[OK] Saved merged panel ({len(panel)} rows) to {panel_path}")
+    panel.to_csv(PROC_DIR / "eurostat_panel_2008_2023.csv", index=False)
+    print(f"[OK] Saved merged panel ({len(panel)} rows)")
 
     plot_fig1_coverage(ghg)
     build_table1(panel)

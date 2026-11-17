@@ -13,21 +13,14 @@ FIG_DIR = BASE_DIR / "reports" / "figures"
 TAB_DIR = BASE_DIR / "reports" / "tables"
 
 PANEL_FILE = PROC_DIR / "eurostat_panel_2008_2023.csv"
-
 AGGREGATE_CODES = {"EU27_2020", "EU28", "EA19", "EA20"}
 
 
-def fit_and_collect(name: str, formula: str, df: pd.DataFrame, cluster: bool = True):
-    mod = smf.ols(formula, data=df)
-    if cluster:
-        res = mod.fit(cov_type="cluster", cov_kwds={"groups": df["geo"]})
-    else:
-        res = mod.fit(cov_type="HC3")
-
+def fit_and_collect(name: str, formula: str, df: pd.DataFrame):
+    res = smf.ols(formula, data=df).fit(cov_type="cluster", cov_kwds={"groups": df["geo"]})
     resid = res.resid
-    jb_stat, jb_p = stats.jarque_bera(resid)
-    sw_stat, sw_p = stats.shapiro(resid) if len(resid) <= 5000 else (np.nan, np.nan)
-
+    _, jb_p = stats.jarque_bera(resid)
+    _, sw_p = stats.shapiro(resid) if len(resid) <= 5000 else (np.nan, np.nan)
     row = {
         "model": name,
         "n_obs": int(res.nobs),
@@ -54,7 +47,6 @@ def main():
         sys.exit(1)
 
     df = pd.read_csv(PANEL_FILE)
-    # Exclude aggregate EU/Euro-area rows and non-positive values before log transform
     df = df[~df["geo"].isin(AGGREGATE_CODES)].copy()
     df = df[(df["ghg_ths_t"] > 0) & (df["pax_total"] > 0)].copy()
 
@@ -73,58 +65,51 @@ def main():
         ("M5_FE_Full_with_Z3_and_Z1", "ln_co2 ~ ln_pax + z3_covid + share_intl_pct + C(geo)", df_z1),
     ]
 
-    summary_rows = []
+    rows = []
     fitted = {}
     with open(TAB_DIR / "h1_full_model_summaries.txt", "w", encoding="utf-8") as f_txt:
         for name, formula, data in models:
-            res, row = fit_and_collect(name, formula, data, cluster=True)
+            res, row = fit_and_collect(name, formula, data)
             fitted[name] = (res, data)
-            summary_rows.append(row)
-            f_txt.write(f"\n{'='*70}\n{name}\n{'='*70}\n")
-            f_txt.write(res.summary().as_text() + "\n")
+            rows.append(row)
+            f_txt.write(f"\n{'='*70}\n{name}\n{'='*70}\n{res.summary().as_text()}\n")
 
-    t2 = pd.DataFrame(summary_rows)
+    t2 = pd.DataFrame(rows)
     t2.round(4).to_csv(TAB_DIR / "table2_h1_regression.csv", index=False)
     print(f"[OK] Saved {TAB_DIR / 'table2_h1_regression.csv'}")
+    print(t2[["model", "n_obs", "r2", "beta_ln_pax", "p_ln_pax", "beta_z3_covid"]].round(4).to_string(index=False))
 
-    # Plot Figure 3: Elasticity scatter + Residual diagnostics for M4
     res_m4, df_m4 = fitted["M4_FE_Full_with_Z3"]
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.2))
+    m3_res, _ = fitted["M3_Pooled_Full_with_Z3"]
 
-    # Panel A: Log-log scatter (pre-COVID vs COVID vs recovery)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.2))
     normal = df[df["year"] <= 2019]
     covid = df[df["z3_covid"] == 1]
     recov = df[df["year"] >= 2022]
 
     axes[0].scatter(normal["ln_pax"], normal["ln_co2"], alpha=0.55, s=22, color="#1d3557", label="2008–2019 (Pre-COVID)")
-    axes[0].scatter(covid["ln_pax"], covid["ln_co2"], alpha=0.75, s=28, color="#e63946", marker="x", label="2020–2021 (COVID Shock)")
+    axes[0].scatter(covid["ln_pax"], covid["ln_co2"], alpha=0.8, s=28, color="#e63946", marker="x", label="2020–2021 (COVID Shock)")
     axes[0].scatter(recov["ln_pax"], recov["ln_co2"], alpha=0.75, s=24, color="#2a9d8f", marker="^", label="2022–2023 (Recovery)")
-
-    # Simple pooled OLS fit line for visual reference
-    m3_res, _ = fitted["M3_Pooled_Full_with_Z3"]
     xs = np.linspace(df["ln_pax"].min(), df["ln_pax"].max(), 100)
-    ys = m3_res.params["Intercept"] + m3_res.params["ln_pax"] * xs
-    axes[0].plot(xs, ys, color="black", lw=1.8, linestyle="--", label=f"Slope = {m3_res.params['ln_pax']:.2f}")
+    axes[0].plot(xs, m3_res.params["Intercept"] + m3_res.params["ln_pax"] * xs, "k--", lw=1.8, label=f"Slope = {m3_res.params['ln_pax']:.2f}")
     axes[0].set_xlabel("ln(Passengers Carried)")
     axes[0].set_ylabel("ln(Aviation GHG, Thousand Tonnes)")
     axes[0].set_title("1. Log-Log Traffic vs. CO2 Elasticity (H1)")
-    axes[0].grid(True, linestyle=":", alpha=0.5)
+    axes[0].grid(True, ls=":", alpha=0.5)
     axes[0].legend(fontsize=8)
 
-    # Panel B: Residuals vs Year (checking 2020-2021 spike control)
     axes[1].scatter(df_m4["year"], res_m4.resid, alpha=0.55, s=18, color="#457b9d")
-    axes[1].axhline(0, color="black", lw=1.2, linestyle="--")
+    axes[1].axhline(0, color="black", lw=1.2, ls="--")
     axes[1].axvspan(2019.6, 2021.4, color="#f7b731", alpha=0.2, label="Z3 = 1 Window")
     axes[1].set_xlabel("Year")
     axes[1].set_ylabel("Model Residual (FE + Z3)")
     axes[1].set_title("2. Residuals Over Time (COVID Control Check)")
-    axes[1].grid(True, linestyle=":", alpha=0.5)
+    axes[1].grid(True, ls=":", alpha=0.5)
     axes[1].legend(fontsize=8)
 
-    # Panel C: Q-Q Normality Check
     stats.probplot(res_m4.resid, dist="norm", plot=axes[2])
     axes[2].set_title("3. Residual Normality Q-Q Plot (M4)")
-    axes[2].grid(True, linestyle=":", alpha=0.5)
+    axes[2].grid(True, ls=":", alpha=0.5)
 
     plt.tight_layout()
     out_fig = FIG_DIR / "fig3_h1_elasticity_and_residuals.png"

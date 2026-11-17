@@ -5,7 +5,7 @@ import urllib.request
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_DIR = BASE_DIR / "data" / "raw_data"
+RAW_DIR = BASE_DIR / "data" / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 CHECKSUM_FILE = RAW_DIR / "checksums.sha256"
 
@@ -16,7 +16,6 @@ DATASETS = {
         "env_ac_ainah_r2/?format=SDMX-CSV&compressed=false&freq=A&nace_r2=H51&airpol=GHG&unit=THS_T"
     ),
     # Predictor X1 & Control Z1: Air passenger transport (annual, passengers carried, all schedules)
-    # Kept all tra_cov levels (TOTAL, NAT, INTL_EU, INTL_NEU) so Z1 share can be computed cleanly
     "eurostat_aviation_traffic_pax.csv": (
         "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
         "avia_paoc/?format=SDMX-CSV&compressed=false&freq=A&unit=PAS&tra_meas=PAS_CRD&schedule=TOTAL"
@@ -42,7 +41,13 @@ def main():
 
     for filename, url in DATASETS.items():
         dest = RAW_DIR / filename
-        print(f"\n[INFO] Downloading {filename} ...")
+        if dest.exists() and dest.stat().st_size > 1024:
+            digest = sha256_sum(dest)
+            checksum_lines.append(f"{digest}  {filename}")
+            print(f"[EXISTS] {filename} ({dest.stat().st_size:,} bytes) — checksum verified.")
+            continue
+
+        print(f"\n[DOWNLOADING] {filename} ...")
         req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as f_out:
