@@ -235,10 +235,19 @@ flowchart TD
 ```text
 .
 ├── data/
-│   └── raw/                    # Raw, unedited data downloaded by automated scripts
-│       ├── eurostat_aviation_ghg_emissions.csv
-│       └── eurostat_aviation_traffic_pax.csv
-│
+│   └── raw_data/               # Raw, unedited data downloaded by automated scripts
+│   |    |   └── GLOBAL_TEMP_DATASETS
+│   |    |            ├── GlobalLandTemperatures_GlobalLandTemperaturesByMajorCity.csv
+│   |    |            |── GlobalLandTemperaturesByCity.csv
+│   |    |            ├── GlobalLandTemperaturesByCountry.csv
+│   |    |            |── GlobalLandTemperaturesByMajorCity.csv
+|   |    |            |── GlobalLandTemperaturesByState.csv
+|   |    |            └── GlobalTemperatures.csv
+│   |    |── eurostat_aviation_ghg_emissions.csv
+│   |    └── eurostat_aviation_traffic_pax.csv
+│   |
+|   └──Hypo_to_DATA.xlsx
+|
 ├── scripts/
 │   ├── 01_get_data.py          # Script downloading primary candidate datasets into data/raw/
 │   └── plot_quick_map.py       # Script generating coverage verification plots
@@ -302,8 +311,7 @@ flowchart TD
 ## Author
 
 * **Name:** Sanglap Roy  
-* **Matriculation No.:** 6385648  
-* **Last Updated:** November 2026  
+ 
 
 ### Data Sources
 * Eurostat Air Transport GHG Accounts (`env_ac_ainah_r2`)
