@@ -5,9 +5,6 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent
 
 PIPELINE = [
-    "requirements.py",
-    "get_eurostat_data.py",
-    "get_era5_data.py",
     "coverage_and_descriptive.py",
     "regression_analysis.py",
     "contrail_analysis.py",
