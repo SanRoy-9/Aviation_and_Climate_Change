@@ -5,10 +5,12 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent
 
 PIPELINE = [
+    #"get_eurostat_data.py",
     "coverage_and_descriptive.py",
     "regression_analysis.py",
-    "contrail_analysis.py",
     "efficiency_analysis.py",
+    #"get_era5_data.py",
+    "contrail_analysis.py",
 ]
 
 for script in PIPELINE:

@@ -7,8 +7,8 @@ M1_Pooled_PreCOVID_2008_2019
 Dep. Variable:                 ln_co2   R-squared:                       0.670
 Model:                            OLS   Adj. R-squared:                  0.669
 Method:                 Least Squares   F-statistic:                     58.54
-Date:                Tue, 17 Nov 2026   Prob (F-statistic):           1.56e-08
-Time:                        22:40:24   Log-Likelihood:                -521.98
+Date:                Thu, 19 Nov 2026   Prob (F-statistic):           1.56e-08
+Time:                        01:14:21   Log-Likelihood:                -521.98
 No. Observations:                 364   AIC:                             1048.
 Df Residuals:                     362   BIC:                             1056.
 Df Model:                           1                                         
@@ -36,8 +36,8 @@ M2_FE_PreCOVID_2008_2019
 Dep. Variable:                 ln_co2   R-squared:                       0.961
 Model:                            OLS   Adj. R-squared:                  0.957
 Method:                 Least Squares   F-statistic:                     13.84
-Date:                Tue, 17 Nov 2026   Prob (F-statistic):           0.000819
-Time:                        22:40:24   Log-Likelihood:                -132.93
+Date:                Thu, 19 Nov 2026   Prob (F-statistic):           0.000819
+Time:                        01:14:21   Log-Likelihood:                -132.93
 No. Observations:                 364   AIC:                             329.9
 Df Residuals:                     332   BIC:                             454.6
 Df Model:                          31                                         
@@ -97,8 +97,8 @@ M3_Pooled_Full_with_Z3
 Dep. Variable:                 ln_co2   R-squared:                       0.659
 Model:                            OLS   Adj. R-squared:                  0.658
 Method:                 Least Squares   F-statistic:                     66.14
-Date:                Tue, 17 Nov 2026   Prob (F-statistic):           6.55e-12
-Time:                        22:40:24   Log-Likelihood:                -719.36
+Date:                Thu, 19 Nov 2026   Prob (F-statistic):           6.55e-12
+Time:                        01:14:21   Log-Likelihood:                -719.36
 No. Observations:                 489   AIC:                             1445.
 Df Residuals:                     486   BIC:                             1457.
 Df Model:                           2                                         
@@ -127,8 +127,8 @@ M4_FE_Full_with_Z3
 Dep. Variable:                 ln_co2   R-squared:                       0.954
 Model:                            OLS   Adj. R-squared:                  0.951
 Method:                 Least Squares   F-statistic:                     37.50
-Date:                Tue, 17 Nov 2026   Prob (F-statistic):           5.29e-09
-Time:                        22:40:24   Log-Likelihood:                -229.64
+Date:                Thu, 19 Nov 2026   Prob (F-statistic):           5.29e-09
+Time:                        01:14:21   Log-Likelihood:                -229.64
 No. Observations:                 489   AIC:                             527.3
 Df Residuals:                     455   BIC:                             669.8
 Df Model:                          33                                         
@@ -190,8 +190,8 @@ M5_FE_Full_with_Z3_and_Z1
 Dep. Variable:                 ln_co2   R-squared:                       0.954
 Model:                            OLS   Adj. R-squared:                  0.951
 Method:                 Least Squares   F-statistic:                     53.18
-Date:                Tue, 17 Nov 2026   Prob (F-statistic):           2.50e-12
-Time:                        22:40:25   Log-Likelihood:                -229.51
+Date:                Thu, 19 Nov 2026   Prob (F-statistic):           2.50e-12
+Time:                        01:14:21   Log-Likelihood:                -229.51
 No. Observations:                 489   AIC:                             529.0
 Df Residuals:                     454   BIC:                             675.8
 Df Model:                          34                                         
