@@ -386,7 +386,6 @@ flowchart TD
 - EEA / EASA Open Access Licence
 
 ### Tags
-- `research-skills`
 - `aviation-climate`
 - `contrails-ERA5`
 - `fuel-efficiency`
