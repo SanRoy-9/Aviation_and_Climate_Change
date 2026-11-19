@@ -143,32 +143,32 @@ gantt
     axisFormat  %b %d
     excludes    weekends
     section WP1 - Hypotheses & Literature
-    Write H1-H3 and Research Question :done, wp1_1, 2026-10-20, 2026-10-26
-    Search papers across databases (A1) :done, wp1_2, 2026-10-26, 2026-11-03
-    Deliverable 1 - Lit Review Table and BibTeX :done, d1, 2026-11-03, 1d
-    Milestone 1 - Theoretical Framework Done :milestone, m1, 2026-11-04, 0d
+    Write H1-H3 and Research Question :done, wp1_1, 2026-10-19, 2026-10-26
+    Search papers across databases (A1) :done, wp1_2, 2026-10-20, 2026-10-24
+    Deliverable 1 - Lit Review Table and BibTeX :done, d1, 2026-10-25, 1d
+    Milestone 1 - Theoretical Framework Done :milestone, m1, 2026-10-26, 0d
     section WP2 - Getting & Checking Data
-    Write Eurostat and route download scripts :done, wp2_1, 2026-11-04, 2026-11-08
-    Map spatial and temporal coverage (A2) :done, wp2_2, 2026-11-06, 2026-11-10
-    Download multi-level day-night ERA5 data :done, wp2_3, 2026-11-11, 2026-11-19
-    Deliverable 2 - Verified Datasets and Maps :done, d2, 2026-11-19, 1d
-    Milestone 2 - Data Readiness Validated :milestone, m2, 2026-11-19, 0d
+    Write Eurostat and route download scripts :done, wp2_1, 2026-11-02, 2026-11-09
+    Map spatial and temporal coverage (A2) :done, wp2_2, 2026-11-02, 2026-11-03
+    Download multi-level day-night ERA5 data :done, wp2_3, 2026-11-04, 2026-11-05
+    Deliverable 2 - Verified Datasets and Maps :done, d2, 2026-11-07, 1d
+    Milestone 2 - Data Readiness Validated :milestone, m2, 2026-11-09, 0d
     section WP3 - Analyzing the Data
-    H1 - Run 10 regressions and jackknife audit :done, wp3_1, 2026-11-15, 2026-11-19
-    H2 - Map contrails, day-night, and eta sensitivity :done, wp3_2, 2026-11-16, 2026-11-19
-    H3 - Run CAGR, LMDI, and Tapio decoupling :done, wp3_3, 2026-11-16, 2026-11-19
-    Check residuals, outliers, and COVID dummy Z3 :done, wp3_4, 2026-11-18, 2026-11-19
+    H1 - Run 10 regressions and jackknife audit :done, wp3_1, 2026-11-10, 2026-11-15
+    H2 - Map contrails, day-night, and eta sensitivity :done, wp3_2, 2026-11-10, 2026-11-11
+    H3 - Run CAGR, LMDI, and Tapio decoupling :done, wp3_3, 2026-11-12, 2026-11-13
+    Check residuals, outliers, and COVID dummy Z3 :done, wp3_4, 2026-11-14, 2026-11-15
     section WP4 - Writing & Reviewing
-    Write Methods, Results, and Discussion :done, wp4_1, 2026-11-17, 2026-11-19
-    Integrate 9 tables, 9 figures, and APA 7 refs :done, wp4_2, 2026-11-19, 2026-11-19
-    Audit end-to-end pipeline via run_all.py :done, wp4_3, 2026-11-19, 2026-11-19
-    Deliverable 3 - Submission-Ready Manuscript :done, d3, 2026-11-19, 1d
+    Write Methods, Results, and Discussion :done, wp4_1, 2026-11-16, 2026-11-20
+    Integrate 9 tables, 9 figures, and APA 7 refs :done, wp4_2, 2026-11-16, 2026-11-17
+    Audit end-to-end pipeline via run_all.py :done, wp4_3, 2026-11-17, 2026-11-18
+    Deliverable 3 - Submission-Ready Manuscript :done, d3, 2026-11-18, 1d
     Milestone 3 - Submission Ready :milestone, m3, 2026-11-20, 0d
 ```
 
 ### Milestones & Deliverables
-- **Milestone 1 (M1) [2026-11-04]:** Completed research scope, primary question, hypotheses (`H1–H3`), and literature matrix (`Deliverable 1`).
-- **Milestone 2 (M2) [2026-11-19]:** Downloaded, SHA-256 verified, and harmonized all Eurostat, airport-pair route, and multi-level ERA5 datasets (`Deliverable 2`).
+- **Milestone 1 (M1) [2026-10-26]:** Completed research scope, primary question, hypotheses (`H1–H3`), and literature matrix (`Deliverable 1`).
+- **Milestone 2 (M2) [2026-11-09]:** Downloaded, SHA-256 verified, and harmonized all Eurostat, airport-pair route, and multi-level ERA5 datasets (`Deliverable 2`).
 - **Milestone 3 (M3) [2026-11-20]:** Executed all econometric, meteorological, and LMDI/Tapio analyses and finalized the submission-ready paper and clean GitHub repository (`Deliverable 3`).
 
 ### Kanban Board
