@@ -262,16 +262,16 @@ flowchart TD
 │   │   ├── checksums.sha256
 │   │   └── route_checksums.sha256
 │   └── processed/
-│       └── eurostat_panel_2008_2023.csv            # Harmonized 2008–2023 country-year panel
+│       └── eurostat_panel_2008_2023.csv            # 2008–2023 country-year panel
 │
 ├── scripts/
-│   ├── get_eurostat_data.py                        # Step 01: Download Eurostat GHG & passenger tables
-│   ├── get_route_traffic_data.py                   # Step 01B: Download bilateral airport-pair corridor traffic
-│   ├── get_era5_data.py                            # Step 02: Download Day (12Z) & Night (00Z) ERA5 grids
-│   ├── coverage_and_descriptive.py                 # Step 03: Merge panel, Table 1 & coverage map
-│   ├── regression_analysis.py                      # Step 04: H1 models M1–M10, diagnostics & jackknife
-│   ├── efficiency_analysis.py                      # Step 05: H3 CAGR, LMDI & Tapio decoupling
-│   ├── contrail_analysis.py                        # Step 06: H2 exact SAC, day/night, eta & corridor exposure
+│   ├── get_eurostat_data.py                        # Download Eurostat GHG & passenger tables
+│   ├── get_route_traffic_data.py                   # Download bilateral airport-pair corridor traffic
+│   ├── get_era5_data.py                            # Download Day (12Z) & Night (00Z) ERA5 grids
+│   ├── coverage_and_descriptive.py                 # Merge panel, Table 1 & coverage map
+│   ├── regression_analysis.py                      # H1 models M1–M10, diagnostics & jackknife
+│   ├── efficiency_analysis.py                      # H3 CAGR, LMDI & Tapio decoupling
+│   ├── contrail_analysis.py                        # H2 exact SAC, day/night, eta & corridor exposure
 │   └── run_all.py                                  # Master pipeline runner
 │
 ├── reports/
@@ -290,7 +290,7 @@ flowchart TD
 │   │   ├── table4_h3_efficiency_decomposition.csv
 │   │   ├── table4b_h3_lmdi_decomposition.csv
 │   │   └── table4c_h3_tapio_decoupling.csv
-│   └── figures/                                    # High-resolution (300 DPI) publication figures
+│   └── figures/                                    # High-resolution (300 DPI) figures
 │       ├── coverag_map.png
 │       ├── fig1_coverage_map.png
 │       ├── fig3_h1_elasticity_and_residuals.png
@@ -301,7 +301,6 @@ flowchart TD
 │       ├── fig5_h3_efficiency_vs_demand.png
 │       └── fig5b_h3_lmdi_and_tapio.png
 │
-├── Initial_Paper_Draft.md                          # Submission-ready research manuscript
 └── README.md                                       # Root repository documentation (this file)
 ```
 
