@@ -44,12 +44,12 @@ python scripts/run_all.py
 ## 2. Research Question & Hypotheses
 
 ### Primary Research Question
-> *How elastically do European territorial aviation $\text{CO}_2$ emissions respond to passenger and cargo demand, how are persistent contrail-permissive conditions distributed across European cruise altitudes and flight corridors, and to what extent have per-passenger intensity reductions decoupled EU27 aviation emissions from traffic growth?*
+> *How elastically do European territorial aviation ($\text{CO}_2$) emissions respond to passenger and cargo demand, how are persistent contrail-permissive conditions distributed across European cruise altitudes and flight corridors, and to what extent have per-passenger intensity reductions decoupled EU27 aviation emissions from traffic growth?*
 
 ### Tested Hypotheses
-- **H1 (Territorial Traffic–Emissions Elasticity & Accounting Bias):** Controlling for air cargo volume and secular time trends, territorial aviation $\text{CO}_2$ emissions across European states exhibit a high, near-unitary short-run elasticity with respect to passenger volume across pre-pandemic, COVID-19, and recovery regimes, whereas residence-based airline accounts introduce severe cross-country distortion and estimation noise.
+- **H1 (Territorial Traffic–Emissions Elasticity & Accounting Bias):** Controlling for air cargo volume and secular time trends, territorial aviation ($\text{CO}_2$) emissions across European states exhibit a high, near-unitary short-run elasticity with respect to passenger volume across pre-pandemic, COVID-19, and recovery regimes, whereas residence-based airline accounts introduce severe cross-country distortion and estimation noise.
 - **H2 (Spatiotemporal Contrail-Permissive Exposure & Propulsion Paradox):** Persistent contrail-permissive conditions ($T \le T_{\text{LM}}$, $\text{RH}_i \ge 100\%$) in European cruise airspace are concentrated along northern and central flight corridors, occur nearly equally at night (when solar shortwave cooling is absent), expand thermodynamically as aircraft engine propulsion efficiency ($\eta$) increases, and concentrate disproportionately on a small subset of medium-haul corridors when weighted by cruise-adjusted aircraft-kilometres.
-- **H3 (Decoupling Limits of Per-Passenger Intensity Gains):** Although operational and fleet improvements substantially lowered EU27 territorial $\text{CO}_2$ emissions per passenger between 2008 and 2023, sustained passenger demand growth outpaced intensity reductions, confining European aviation to weak decoupling rather than absolute emissions decline.
+- **H3 (Decoupling Limits of Per-Passenger Intensity Gains):** Although operational and fleet improvements substantially lowered EU27 territorial ($\text{CO}_2$) emissions per passenger between 2008 and 2023, sustained passenger demand growth outpaced intensity reductions, confining European aviation to weak decoupling rather than absolute emissions decline.
 
 ---
 
@@ -57,8 +57,8 @@ python scripts/run_all.py
 
 | Role | Code | Variable Name | Operational Definition | Metric / Unit | Expected Direction | Hypothesis |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Primary Response** | **Y1** | Territorial Aviation $\text{CO}_2$ | Annual territorial $\text{CO}_2$ from UNFCCC/EEA `env_air_gge` summing domestic aviation (`CRF1A3A`) + international bunkers (`CRF1D1A`) | Thousand tonnes $\text{CO}_2$ (`ln_co2`) | Positive (+) | H1, H3 |
-| **Benchmark Response** | **Y1b** | Residence-Principle Aviation GHG | Annual NACE Rev. 2 `H51` air transport GHG (`env_ac_ainah_r2`) used strictly for accounting boundary audit (`Table 1b` & `M10`) | Thousand tonnes $\text{CO}_2\text{e}$ (`ln_ghg_res`) | Distortion check | H1 |
+| **Primary Response** | **Y1** | Territorial Aviation ($\text{CO}_2$) | Annual territorial ($\text{CO}_2$) from UNFCCC/EEA `env_air_gge` summing domestic aviation (`CRF1A3A`) + international bunkers (`CRF1D1A`) | Thousand tonnes ($\text{CO}_2$) (`ln_co2`) | Positive (+) | H1, H3 |
+| **Benchmark Response** | **Y1b** | Residence-Principle Aviation GHG | Annual NACE Rev. 2 `H51` air transport GHG (`env_ac_ainah_r2`) used strictly for accounting boundary audit (`Table 1b` & `M10`) | Thousand tonnes ($\text{CO}_2\text{e}$) (`ln_ghg_res`) | Distortion check | H1 |
 | **Primary Predictor** | **X1** | Commercial Air Passengers | Annual commercial passengers carried at territorial reporting airports (`avia_paoc`, `PAS_CRD`, all schedules) | Passengers / year (`ln_pax`) | Positive (+) | H1, H3 |
 | **Control (Cargo)** | **Z4** | Air Freight & Mail Volume | Annual air freight and mail loaded/unloaded (`avia_gooc`, `FRM_LD_NLD`, `TOTAL`) | Tonnes / year (`ln_cargo`) | Positive (+) | H1 |
 | **Predictor (H2)** | **X2** | Contrail-Permissive Frequency | ERA5 grids meeting exact Schmidt–Appleman ($T \le T_{\text{LM}}$) & ice supersaturation ($\text{RH}_i \ge 100\%$, plus dry-bias sensitivity $97\%, 95\%, 90\%$) across `200–400 hPa` (`00Z` & `12Z`, 2008–2022) | % cruise time / grid frequency | Positive (+) | H2 |
