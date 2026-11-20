@@ -16,7 +16,7 @@
 
 ## 1. Project Overview
 
-Commercial aviation connects European economies and supports global trade and mobility, yet it warms the climate through both direct carbon dioxide ($\text{CO}_2$) emissions from jet fuel combustion and non-$\text{CO}_2$ persistent condensation trails (contrails) formed in cold, ice-supersaturated upper-tropospheric air. While fleet renewal and operational improvements reduce emissions per passenger over time, sustained air traffic growth risks outpacing these intensity reductions.
+Commercial aviation connects European economies and supports global trade and mobility, yet it warms the climate through both direct carbon dioxide ($\text{CO}_2$) emissions from jet fuel combustion and non-($\text{CO}_2$) persistent condensation trails (contrails) formed in cold, ice-supersaturated upper-tropospheric air. While fleet renewal and operational improvements reduce emissions per passenger over time, sustained air traffic growth risks outpacing these intensity reductions.
 
 This repository houses the complete, reproducible data ingestion pipeline, econometric models, multi-level atmospheric reanalysis scripts, output tables, publication figures, and manuscript investigating European airspace (`34°N–70°N, 15°W–35°E`) across **2008–2023** (with complete-year ERA5 meteorological reanalysis spanning **2008–2022**).
 
