@@ -1,6 +1,5 @@
 import hashlib
 import sys
-import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -10,16 +9,38 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 CHECKSUM_FILE = RAW_DIR / "checksums.sha256"
 
 DATASETS = {
-    # Response Y1: Air transport GHG emissions (Thousand tonnes CO2e)
-    "eurostat_aviation_ghg_emissions.csv": (
-        "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
-        "env_ac_ainah_r2/?format=SDMX-CSV&compressed=false&freq=A&nace_r2=H51&airpol=GHG&unit=THS_T"
-    ),
-    # Predictor X1 & Control Z1: Air passenger transport (annual, passengers carried, all schedules)
-    "eurostat_aviation_traffic_pax.csv": (
-        "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
-        "avia_paoc/?format=SDMX-CSV&compressed=false&freq=A&unit=PAS&tra_meas=PAS_CRD&schedule=TOTAL"
-    ),
+    "eurostat_aviation_territorial_gge.csv": [
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "env_air_gge/A.THS_T.CO2+GHG.CRF1A3A+CRF1D1A./?format=SDMX-CSV&compressed=false&startPeriod=2008&endPeriod=2023"
+        ),
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "env_air_gge/?format=SDMX-CSV&compressed=false&freq=A&unit=THS_T&airpol=CO2&airpol=GHG&src_crf=CRF1A3A&src_crf=CRF1D1A"
+        ),
+    ],
+    "eurostat_aviation_ghg_emissions.csv": [
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "env_ac_ainah_r2/?format=SDMX-CSV&compressed=false&freq=A&nace_r2=H51&airpol=GHG&unit=THS_T"
+        ),
+    ],
+    "eurostat_aviation_traffic_pax.csv": [
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "avia_paoc/?format=SDMX-CSV&compressed=false&freq=A&unit=PAS&tra_meas=PAS_CRD&schedule=TOTAL"
+        ),
+    ],
+    "eurostat_aviation_cargo_tonnes.csv": [
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "avia_gooc/?format=SDMX-CSV&compressed=false&freq=A&unit=T&tra_meas=FRM_LD_NLD&schedule=TOTAL&tra_cov=TOTAL"
+        ),
+        (
+            "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+            "avia_gooc/A.T.FRM_LD_NLD.TOTAL.TOTAL./?format=SDMX-CSV&compressed=false&startPeriod=2008&endPeriod=2023"
+        ),
+    ],
 }
 
 
@@ -32,14 +53,14 @@ def sha256_sum(path: Path) -> str:
 
 
 def main():
-    print("=" * 65)
-    print("STEP 01: DOWNLOADING EUROSTAT DATA INTO data/raw/")
-    print("=" * 65)
+    print("=" * 68)
+    print("STEP 01: DOWNLOADING EUROSTAT TERRITORIAL, RESIDENCE, PAX & CARGO")
+    print("=" * 68)
 
-    headers = {"User-Agent": "AviationClimateResearch/1.0 (Matriculation_6385648)"}
+    headers = {"User-Agent": "EuropeanAviationClimateResearch/2.0"}
     checksum_lines = []
 
-    for filename, url in DATASETS.items():
+    for filename, url_list in DATASETS.items():
         dest = RAW_DIR / filename
         if dest.exists() and dest.stat().st_size > 1024:
             digest = sha256_sum(dest)
@@ -48,16 +69,28 @@ def main():
             continue
 
         print(f"\n[DOWNLOADING] {filename} ...")
-        req = urllib.request.Request(url, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as f_out:
-                f_out.write(resp.read())
-            digest = sha256_sum(dest)
-            checksum_lines.append(f"{digest}  {filename}")
-            print(f"[OK] Saved {dest} ({dest.stat().st_size:,} bytes)")
-            print(f"[SHA-256] {digest}")
-        except urllib.error.URLError as e:
-            print(f"[ERROR] Failed to download {filename}: {e}", file=sys.stderr)
+        success = False
+        last_err = None
+        for url in url_list:
+            req = urllib.request.Request(url, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    payload = resp.read()
+                if len(payload) < 500 or b"TIME_PERIOD" not in payload.upper():
+                    raise ValueError(f"Empty or invalid SDMX-CSV response ({len(payload)} bytes)")
+                dest.write_bytes(payload)
+                digest = sha256_sum(dest)
+                checksum_lines.append(f"{digest}  {filename}")
+                print(f"[OK] Saved {dest.name} ({dest.stat().st_size:,} bytes)")
+                print(f"[SHA-256] {digest}")
+                success = True
+                break
+            except Exception as e:
+                last_err = e
+                print(f"  [RETRY] Candidate URL failed ({e}); trying fallback ...")
+
+        if not success:
+            print(f"[ERROR] Failed to download {filename}: {last_err}", file=sys.stderr)
             sys.exit(1)
 
     CHECKSUM_FILE.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")

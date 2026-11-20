@@ -2,7 +2,6 @@ import gzip
 import hashlib
 import io
 import math
-import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -18,6 +17,8 @@ PROC_DIR.mkdir(parents=True, exist_ok=True)
 OUT_FILE = RAW_DIR / "eurostat_corridor_pax_2008_2023.csv"
 CHECKSUM_FILE = RAW_DIR / "route_checksums.sha256"
 PANEL_FILE = PROC_DIR / "eurostat_panel_2008_2023.csv"
+
+CLIMB_DESCENT_KM = 220.0
 
 AIRPORTS = {
     "London (LHR)": ("UK_EGLL", "UK", -0.46, 51.47),
@@ -46,7 +47,6 @@ CORRIDORS = [
     ("Frankfurt (FRA)", "Stockholm (ARN)"),
 ]
 
-# In Eurostat avia_par_{cc}, airp_pr always starts with the reporting country's airport code
 CORRIDOR_REPORTER_CANDIDATES = {
     ("London (LHR)", "Frankfurt (FRA)"): [("de", "DE_EDDF_UK_EGLL")],
     ("Paris (CDG)", "Frankfurt (FRA)"): [("de", "DE_EDDF_FR_LFPG"), ("fr", "FR_LFPG_DE_EDDF")],
@@ -78,114 +78,137 @@ def haversine_km(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def fetch_single_pair_sdmx(cc: str, pair_code: str) -> pd.DataFrame:
-    """Fetch a single airport pair from Eurostat avia_par_{cc} using exact 4D SDMX key."""
-    candidate_urls = [
-        (
-            f"https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
-            f"avia_par_{cc}/A.PAS_CRD.PAS.{pair_code}/?format=SDMX-CSV&startPeriod=2008&endPeriod=2023"
-        ),
-        (
-            f"https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
-            f"avia_par_{cc}/A.PAS_BRD.PAS.{pair_code}/?format=SDMX-CSV&startPeriod=2008&endPeriod=2023"
-        ),
-    ]
+def fetch_single_pair_metric(cc: str, pair_code: str, candidate_specs: list[tuple[str, str, float]]) -> pd.DataFrame:
+    for tra_meas, unit, mult in candidate_specs:
+        # Use exact positional SDMX key first (freq.unit.tra_meas.airp_pr) + strict pandas filtering
+        urls = [
+            (
+                f"https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+                f"avia_par_{cc}/A.{unit}.{tra_meas}.{pair_code}/?format=SDMX-CSV&compressed=false&startPeriod=2008&endPeriod=2023"
+            ),
+            (
+                f"https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
+                f"avia_par_{cc}/A.{tra_meas}.{unit}.{pair_code}/?format=SDMX-CSV&compressed=false&startPeriod=2008&endPeriod=2023"
+            ),
+        ]
+        for url in urls:
+            req = urllib.request.Request(url, headers={"User-Agent": "EuropeanAviationClimateResearch/2.0"})
+            try:
+                with urllib.request.urlopen(req, timeout=45) as resp:
+                    raw_bytes = resp.read()
+            except Exception:
+                continue
 
-    for url in candidate_urls:
-        req = urllib.request.Request(url, headers={"User-Agent": "AviationClimateResearch/1.0"})
-        try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                raw_bytes = resp.read()
-        except Exception:
-            continue
+            if not raw_bytes:
+                continue
 
-        if not raw_bytes:
-            continue
+            text = (
+                gzip.decompress(raw_bytes).decode("utf-8", errors="ignore")
+                if raw_bytes[:2] == b"\x1f\x8b"
+                else raw_bytes.decode("utf-8", errors="ignore")
+            )
+            if not text.strip() or "TIME_PERIOD" not in text.upper():
+                continue
 
-        text = (
-            gzip.decompress(raw_bytes).decode("utf-8", errors="ignore")
-            if raw_bytes[:2] == b"\x1f\x8b"
-            else raw_bytes.decode("utf-8", errors="ignore")
-        )
-        if not text.strip() or "TIME_PERIOD" not in text.upper():
-            continue
+            df = pd.read_csv(io.StringIO(text), low_memory=False)
+            df.columns = [c.lower() for c in df.columns]
 
-        df = pd.read_csv(io.StringIO(text), low_memory=False)
-        df.columns = [c.lower() for c in df.columns]
-        t_col = "time_period" if "time_period" in df.columns else "time"
-        v_col = "obs_value" if "obs_value" in df.columns else "value"
-        if t_col not in df.columns or v_col not in df.columns:
-            continue
+            # Strict in-memory filter so wrong units/measures can NEVER leak in
+            if "unit" in df.columns:
+                df = df[df["unit"] == unit]
+            if "tra_meas" in df.columns:
+                df = df[df["tra_meas"] == tra_meas]
+            if "airp_pr" in df.columns:
+                df = df[df["airp_pr"] == pair_code]
 
-        df["year"] = pd.to_numeric(df[t_col], errors="coerce")
-        df["pax"] = pd.to_numeric(df[v_col], errors="coerce")
-        df = df.dropna(subset=["year", "pax"]).copy()
-        df["year"] = df["year"].astype(int)
-        df = df[(df["year"] >= 2008) & (df["year"] <= 2023) & (df["pax"] > 0)]
-        if not df.empty:
-            df["reporter"] = cc.upper()
-            return df[["reporter", "year", "pax"]].groupby(["reporter", "year"], as_index=False)["pax"].max()
+            t_col = "time_period" if "time_period" in df.columns else "time"
+            v_col = "obs_value" if "obs_value" in df.columns else "value"
+            if df.empty or t_col not in df.columns or v_col not in df.columns:
+                continue
+
+            df["year"] = pd.to_numeric(df[t_col], errors="coerce")
+            df["val"] = pd.to_numeric(df[v_col], errors="coerce") * mult
+            df = df.dropna(subset=["year", "val"]).copy()
+            df["year"] = df["year"].astype(int)
+            df = df[(df["year"] >= 2008) & (df["year"] <= 2023) & (df["val"] > 0)]
+            if not df.empty:
+                df["reporter"] = cc.upper()
+                return df[["reporter", "year", "val"]].groupby(["reporter", "year"], as_index=False)["val"].max()
 
     return pd.DataFrame()
 
 
 def main():
-    print("=" * 65)
-    print("STEP 01B: DOWNLOADING EUROSTAT AIRPORT-PAIR ROUTE TRAFFIC")
-    print("=" * 65)
+    print("=" * 68)
+    print("STEP 01B: DOWNLOADING EUROSTAT AIRPORT-PAIR PASSENGERS & FLIGHTS")
+    print("=" * 68)
 
+    # Always refresh if flights look corrupted (e.g., pax_per_flight < 20)
     if OUT_FILE.exists() and OUT_FILE.stat().st_size > 2048:
         existing_df = pd.read_csv(OUT_FILE)
+        required_cols = {"pax_route", "flights_route", "pax_per_flight", "cruise_flight_km_millions"}
         if (
-            "pax_route" in existing_df.columns
+            required_cols.issubset(existing_df.columns)
             and existing_df["pax_route"].notna().sum() >= 140
-            and existing_df["pax_route"].max() > 10000
+            and existing_df["flights_route"].notna().sum() >= 140
+            and float(existing_df["pax_per_flight"].min()) >= 30.0
         ):
             digest = sha256_sum(OUT_FILE)
             CHECKSUM_FILE.write_text(f"{digest}  {OUT_FILE.name}\n", encoding="utf-8")
-            print(f"[EXISTS] {OUT_FILE.name} ({OUT_FILE.stat().st_size:,} bytes) — checksum verified.")
+            print(f"[EXISTS] {OUT_FILE.name} — pax & flights sanity-checked (min pax/flight = {existing_df['pax_per_flight'].min():.1f}).")
             return
-        else:
-            print("[REFRESH] Existing route file was incomplete; fetching exact SDMX airport pairs ...")
+        print("[REFRESH] Detected corrupted flight units in cached file; re-fetching strictly filtered Eurostat series ...")
 
     nat_growth = {}
-    country_pax_2019 = {}
     if PANEL_FILE.exists():
         pan = pd.read_csv(PANEL_FILE)
         eu = pan[pan["geo"] == "EU27_2020"].sort_values("year")
-        if not eu.empty:
+        if not eu.empty and (eu["year"] == 2019).any():
             base_2019 = float(eu.loc[eu["year"] == 2019, "pax_total"].values[0])
             for _, r in eu.iterrows():
                 nat_growth[int(r["year"])] = float(r["pax_total"]) / base_2019
-        p19 = pan[pan["year"] == 2019]
-        for _, r in p19.iterrows():
-            country_pax_2019[str(r["geo"])] = float(r["pax_total"])
-    country_pax_2019.setdefault("UK", 297_000_000.0)
+
+    pax_specs = [("PAS_CRD", "PAS", 1.0), ("PAS_BRD", "PAS", 1.0)]
+    flt_specs = [("CAF_PAS", "FLIGHT", 1.0), ("CAF_PAS_DEP", "FLIGHT", 2.0)]
 
     rows = []
     for orig, dest in CORRIDORS:
-        c1, iso1, lon1, lat1 = AIRPORTS[orig]
-        c2, iso2, lon2, lat2 = AIRPORTS[dest]
+        c1, _, lon1, lat1 = AIRPORTS[orig]
+        c2, _, lon2, lat2 = AIRPORTS[dest]
         dist_km = round(haversine_km(lon1, lat1, lon2, lat2), 1)
+        cruise_km = round(max(dist_km - CLIMB_DESCENT_KM, 0.25 * dist_km), 1)
+        cruise_level_hpa = 300 if dist_km < 600.0 else 250
         corridor_label = f"{orig} - {dest}"
-        print(f"  [FETCHING] {corridor_label} ({dist_km:.0f} km) ...", flush=True)
+        print(f"  [FETCHING] {corridor_label} ({dist_km:.0f} km | cruise {cruise_km:.0f} km @ {cruise_level_hpa} hPa) ...", flush=True)
 
-        cand_frames = []
+        pax_frames, flt_frames = [], []
         for cc, pair_code in CORRIDOR_REPORTER_CANDIDATES[(orig, dest)]:
-            sub = fetch_single_pair_sdmx(cc, pair_code)
-            if not sub.empty:
-                cand_frames.append(sub)
+            p_sub = fetch_single_pair_metric(cc, pair_code, pax_specs)
+            if not p_sub.empty:
+                pax_frames.append(p_sub)
+            f_sub = fetch_single_pair_metric(cc, pair_code, flt_specs)
+            if not f_sub.empty:
+                flt_frames.append(f_sub)
 
-        merged_pair = pd.concat(cand_frames, ignore_index=True) if cand_frames else pd.DataFrame()
-        n_direct = 0
+        merged_pax = pd.concat(pax_frames, ignore_index=True) if pax_frames else pd.DataFrame()
+        merged_flt = pd.concat(flt_frames, ignore_index=True) if flt_frames else pd.DataFrame()
+
+        n_pax_dir, n_flt_dir = 0, 0
         for yr in range(2008, 2024):
-            pax_val = np.nan
-            source_note = "eurostat_direct"
-            if not merged_pair.empty:
-                yr_sub = merged_pair[merged_pair["year"] == yr]
-                if not yr_sub.empty:
-                    pax_val = float(yr_sub["pax"].max())
-                    n_direct += 1
+            pax_val, flt_val = np.nan, np.nan
+            if not merged_pax.empty:
+                yr_p = merged_pax[merged_pax["year"] == yr]
+                if not yr_p.empty:
+                    pax_val = float(yr_p["val"].max())
+                    n_pax_dir += 1
+            if not merged_flt.empty:
+                yr_f = merged_flt[merged_flt["year"] == yr]
+                if not yr_f.empty:
+                    cand_flt = float(yr_f["val"].max())
+                    # Sanity check: commercial flights must imply >= 25 passengers/flight
+                    if np.isnan(pax_val) or (pax_val / cand_flt >= 25.0):
+                        flt_val = cand_flt
+                        n_flt_dir += 1
 
             rows.append({
                 "corridor": corridor_label,
@@ -194,52 +217,51 @@ def main():
                 "orig_code": c1,
                 "dest_code": c2,
                 "distance_km": dist_km,
+                "cruise_km": cruise_km,
+                "typical_cruise_hpa": cruise_level_hpa,
                 "year": yr,
                 "pax_route": pax_val,
-                "data_source": source_note,
+                "flights_route": flt_val,
+                "pax_source": "eurostat_direct" if not np.isnan(pax_val) else "imputed",
+                "flights_source": "eurostat_direct" if not np.isnan(flt_val) else "imputed",
             })
-        print(f"    -> {n_direct}/16 direct Eurostat years retrieved.")
+        print(f"    -> Direct Eurostat years: {n_pax_dir}/16 pax | {n_flt_dir}/16 flights.")
 
     out_df = pd.DataFrame(rows)
 
     for corr, grp in out_df.groupby("corridor"):
-        orig_name = grp["orig_airport"].iloc[0]
-        dest_name = grp["dest_airport"].iloc[0]
-        iso1 = AIRPORTS[orig_name][1]
-        iso2 = AIRPORTS[dest_name][1]
-        dist_km = float(grp["distance_km"].iloc[0])
+        both = grp.dropna(subset=["pax_route", "flights_route"])
+        pax_per_flt = float((both["pax_route"] / both["flights_route"]).median()) if not both.empty else 130.0
 
-        valid_2019 = grp.loc[grp["year"] == 2019, "pax_route"].dropna()
-        if not valid_2019.empty:
-            pax_2019_est = float(valid_2019.iloc[0])
-            imp_label = "eurostat_imputed_from_eu_index"
+        valid_p19 = grp.loc[grp["year"] == 2019, "pax_route"].dropna()
+        if not valid_p19.empty:
+            p19_est = float(valid_p19.iloc[0])
         else:
             valid_any = grp["pax_route"].dropna()
             if not valid_any.empty:
                 ref_yr = int(grp.loc[valid_any.index[0], "year"])
-                ref_pax = float(valid_any.iloc[0])
-                ref_idx = nat_growth.get(ref_yr, 1.0)
-                pax_2019_est = ref_pax / max(ref_idx, 0.1)
-                imp_label = "eurostat_imputed_from_eu_index"
+                p19_est = float(valid_any.iloc[0]) / max(nat_growth.get(ref_yr, 1.0), 0.1)
             else:
-                p1 = country_pax_2019.get(iso1, 50_000_000.0) / 1e6
-                p2 = country_pax_2019.get(iso2, 50_000_000.0) / 1e6
-                pax_2019_est = 38_000.0 * math.sqrt(p1 * p2) * (1000.0 / max(dist_km, 300.0)) ** 0.35
-                imp_label = "gravity_calibrated_from_eurostat_national"
+                p19_est = np.nan
 
         for idx, r in grp.iterrows():
-            if pd.isna(r["pax_route"]):
-                yr_idx = nat_growth.get(int(r["year"]), 1.0)
-                out_df.loc[idx, "pax_route"] = round(pax_2019_est * yr_idx, 0)
-                out_df.loc[idx, "data_source"] = imp_label
+            yr_idx = nat_growth.get(int(r["year"]), 1.0)
+            if pd.isna(r["pax_route"]) and pd.notna(p19_est):
+                out_df.loc[idx, "pax_route"] = round(p19_est * yr_idx, 0)
+            if pd.isna(r["flights_route"]) and pd.notna(out_df.loc[idx, "pax_route"]):
+                out_df.loc[idx, "flights_route"] = round(out_df.loc[idx, "pax_route"] / pax_per_flt, 0)
 
-    out_df["pax_km_millions"] = (out_df["pax_route"] * out_df["distance_km"]) / 1e6
+    out_df["pax_per_flight"] = (out_df["pax_route"] / out_df["flights_route"]).round(1)
+    out_df["pax_km_millions"] = ((out_df["pax_route"] * out_df["distance_km"]) / 1e6).round(3)
+    out_df["flight_km_millions"] = ((out_df["flights_route"] * out_df["distance_km"]) / 1e6).round(4)
+    out_df["cruise_flight_km_millions"] = ((out_df["flights_route"] * out_df["cruise_km"]) / 1e6).round(4)
+
     out_df.to_csv(OUT_FILE, index=False)
     digest = sha256_sum(OUT_FILE)
     CHECKSUM_FILE.write_text(f"{digest}  {OUT_FILE.name}\n", encoding="utf-8")
-    n_valid = int(out_df["pax_route"].notna().sum())
-    print(f"[OK] Saved {OUT_FILE} ({len(out_df)} corridor-year rows, {n_valid} populated)")
-    print(f"[SHA-256] {digest}")
+    print(f"[OK] Saved {OUT_FILE} ({len(out_df)} corridor-year rows)")
+    print("[2019 CORRIDOR SANITY CHECK]:")
+    print(out_df[out_df["year"] == 2019][["corridor", "pax_route", "flights_route", "pax_per_flight", "cruise_flight_km_millions"]].to_string(index=False))
 
 
 if __name__ == "__main__":

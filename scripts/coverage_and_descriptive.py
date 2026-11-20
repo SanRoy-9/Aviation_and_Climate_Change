@@ -24,8 +24,11 @@ TAB_DIR = BASE_DIR / "reports" / "tables"
 for d in (PROC_DIR, FIG_DIR, TAB_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
-GHG_FILE = RAW_DIR / "eurostat_aviation_ghg_emissions.csv"
+TERR_FILE = RAW_DIR / "eurostat_aviation_territorial_gge.csv"
+RES_GHG_FILE = RAW_DIR / "eurostat_aviation_ghg_emissions.csv"
 PAX_FILE = RAW_DIR / "eurostat_aviation_traffic_pax.csv"
+CARGO_FILE = RAW_DIR / "eurostat_aviation_cargo_tonnes.csv"
+
 CORE_STATES = ["AT", "BE", "DE", "ES", "FR", "IE", "IT", "NL", "PL", "PT", "SE"]
 
 AIRPORTS = {
@@ -53,12 +56,42 @@ CORRIDORS = [
     ("Madrid (MAD)", "Lisbon (LIS)"),
     ("Frankfurt (FRA)", "Warsaw (WAW)"),
     ("Frankfurt (FRA)", "Stockholm (ARN)"),
-    ("Amsterdam (AMS)", "Frankfurt (FRA)"),
 ]
 
 
-def load_eurostat_ghg() -> pd.DataFrame:
-    df = pd.read_csv(GHG_FILE)
+def load_territorial_emissions() -> pd.DataFrame:
+    df = pd.read_csv(TERR_FILE, low_memory=False)
+    df.columns = [c.lower() for c in df.columns]
+    for col, val in [("unit", "THS_T"), ("freq", "A")]:
+        if col in df.columns:
+            df = df[df[col] == val]
+
+    t_col = "time_period" if "time_period" in df.columns else "time"
+    v_col = "obs_value" if "obs_value" in df.columns else "value"
+    df["year"] = pd.to_numeric(df[t_col], errors="coerce")
+    df["val"] = pd.to_numeric(df[v_col], errors="coerce")
+    df = df.dropna(subset=["geo", "year", "val", "src_crf", "airpol"]).copy()
+    df["year"] = df["year"].astype(int)
+    df = df[(df["year"] >= 2008) & (df["year"] <= 2023)]
+    df = df[df["src_crf"].isin(["CRF1A3A", "CRF1D1A"]) & df["airpol"].isin(["CO2", "GHG"])]
+
+    piv = df.pivot_table(index=["geo", "year"], columns=["airpol", "src_crf"], values="val", aggfunc="sum")
+    out = pd.DataFrame(index=piv.index)
+    for pol, prefix in [("CO2", "co2"), ("GHG", "ghg")]:
+        dom = piv[(pol, "CRF1A3A")] if (pol, "CRF1A3A") in piv.columns else pd.Series(0.0, index=piv.index)
+        intl = piv[(pol, "CRF1D1A")] if (pol, "CRF1D1A") in piv.columns else pd.Series(0.0, index=piv.index)
+        both_missing = dom.isna() & intl.isna()
+        out[f"dom_{prefix}_ths_t"] = dom.fillna(0.0).where(~both_missing, np.nan)
+        out[f"intl_{prefix}_ths_t"] = intl.fillna(0.0).where(~both_missing, np.nan)
+        out[f"{prefix}_terr_ths_t"] = (dom.fillna(0.0) + intl.fillna(0.0)).where(~both_missing, np.nan)
+
+    return out.reset_index()
+
+
+def load_residence_ghg() -> pd.DataFrame:
+    if not RES_GHG_FILE.exists():
+        return pd.DataFrame(columns=["geo", "year", "ghg_res_ths_t"])
+    df = pd.read_csv(RES_GHG_FILE, low_memory=False)
     df.columns = [c.lower() for c in df.columns]
     for col, val in [("unit", "THS_T"), ("freq", "A"), ("airpol", "GHG"), ("nace_r2", "H51")]:
         if col in df.columns:
@@ -66,16 +99,16 @@ def load_eurostat_ghg() -> pd.DataFrame:
 
     t_col = "time_period" if "time_period" in df.columns else "time"
     v_col = "obs_value" if "obs_value" in df.columns else "value"
-    out = df[["geo", t_col, v_col]].rename(columns={t_col: "year", v_col: "ghg_ths_t"}).copy()
+    out = df[["geo", t_col, v_col]].rename(columns={t_col: "year", v_col: "ghg_res_ths_t"}).copy()
     out["year"] = pd.to_numeric(out["year"], errors="coerce")
-    out["ghg_ths_t"] = pd.to_numeric(out["ghg_ths_t"], errors="coerce")
+    out["ghg_res_ths_t"] = pd.to_numeric(out["ghg_res_ths_t"], errors="coerce")
     out = out.dropna()
     out["year"] = out["year"].astype(int)
     return out[(out["year"] >= 2008) & (out["year"] <= 2023)]
 
 
 def load_eurostat_pax() -> pd.DataFrame:
-    df = pd.read_csv(PAX_FILE)
+    df = pd.read_csv(PAX_FILE, low_memory=False)
     df.columns = [c.lower() for c in df.columns]
     for col, val in [("freq", "A"), ("unit", "PAS"), ("tra_meas", "PAS_CRD"), ("schedule", "TOTAL")]:
         if col in df.columns:
@@ -100,9 +133,28 @@ def load_eurostat_pax() -> pd.DataFrame:
     return tot.merge(cov_piv[["geo", "year", "share_intl_pct", "share_extra_eu_pct"]], on=["geo", "year"], how="left")
 
 
-def plot_fig1_coverage(ghg: pd.DataFrame):
-    pivot = ghg[ghg["geo"].isin(CORE_STATES)].pivot_table(
-        index="geo", columns="year", values="ghg_ths_t", aggfunc="sum"
+def load_eurostat_cargo() -> pd.DataFrame:
+    if not CARGO_FILE.exists():
+        return pd.DataFrame(columns=["geo", "year", "cargo_tonnes"])
+    df = pd.read_csv(CARGO_FILE, low_memory=False)
+    df.columns = [c.lower() for c in df.columns]
+    for col, val in [("freq", "A"), ("unit", "T"), ("tra_meas", "FRM_LD_NLD"), ("schedule", "TOTAL"), ("tra_cov", "TOTAL")]:
+        if col in df.columns:
+            df = df[df[col] == val]
+
+    t_col = "time_period" if "time_period" in df.columns else "time"
+    v_col = "obs_value" if "obs_value" in df.columns else "value"
+    out = df[["geo", t_col, v_col]].rename(columns={t_col: "year", v_col: "cargo_tonnes"}).copy()
+    out["year"] = pd.to_numeric(out["year"], errors="coerce")
+    out["cargo_tonnes"] = pd.to_numeric(out["cargo_tonnes"], errors="coerce")
+    out = out.dropna()
+    out["year"] = out["year"].astype(int)
+    return out[(out["year"] >= 2008) & (out["year"] <= 2023)].groupby(["geo", "year"], as_index=False)["cargo_tonnes"].max()
+
+
+def plot_fig1_coverage(terr: pd.DataFrame):
+    pivot = terr[terr["geo"].isin(CORE_STATES)].pivot_table(
+        index="geo", columns="year", values="co2_terr_ths_t", aggfunc="sum"
     )
     fig = plt.figure(figsize=(20, 6))
 
@@ -162,31 +214,33 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
     ax1.tick_params(colors="#c0d6df")
     ax1.grid(True, linestyle=":", alpha=0.25, color="white")
     ax1.legend(loc="lower left", fontsize=7.5)
-    ax1.set_title("1. Geographic Study Area & Corridors\n(34°N–70°N, 15°W–35°E)", fontsize=10, fontweight="bold")
+    ax1.set_title("1. European Study Domain & Core Corridors\n(34°N–70°N, 15°W–35°E)", fontsize=10, fontweight="bold")
 
     ax2 = fig.add_subplot(1, 3, 2)
-    cols = [y for y in [2019, 2020, 2022] if y in pivot.columns]
+    cols = [y for y in [2019, 2020, 2023] if y in pivot.columns]
     pivot[cols].plot(kind="bar", ax=ax2, colormap="cividis", edgecolor="black", width=0.8)
-    ax2.set_title("2. Aviation GHG Emissions in Core States\n(2019 vs. 2020 vs. 2022)", fontsize=10, fontweight="bold")
-    ax2.set_ylabel("Thousand Tonnes CO2e", fontsize=9)
+    ax2.set_title("2. Territorial Aviation CO2 in Core States\n(UNFCCC Bunkers + Domestic: 2019 vs. 2020 vs. 2023)", fontsize=10, fontweight="bold")
+    ax2.set_ylabel("Thousand Tonnes CO2", fontsize=9)
     ax2.set_xlabel("Member State", fontsize=9)
     ax2.grid(axis="y", linestyle="--", alpha=0.5)
     ax2.legend(title="Year", fontsize=8)
 
     ax3 = fig.add_subplot(1, 3, 3)
-    ts = ghg[ghg["geo"].isin(["EU27_2020", "DE", "FR"])].pivot_table(
-        index="year", columns="geo", values="ghg_ths_t", aggfunc="sum"
+    ts = terr[terr["geo"].isin(["EU27_2020", "DE", "ES", "FR"])].pivot_table(
+        index="year", columns="geo", values="co2_terr_ths_t", aggfunc="sum"
     )
     if "EU27_2020" in ts.columns:
-        ax3.plot(ts.index, ts["EU27_2020"], marker="o", color="#b33939", lw=2, ms=4, label="EU27 (2020)")
+        ax3.plot(ts.index, ts["EU27_2020"], marker="o", color="#b33939", lw=2.2, ms=4, label="EU27 (2020)")
     if "DE" in ts.columns:
         ax3.plot(ts.index, ts["DE"], marker="s", color="#1d3557", lw=1.6, ms=3.5, label="Germany (DE)")
     if "FR" in ts.columns:
         ax3.plot(ts.index, ts["FR"], marker="^", color="#457b9d", lw=1.6, ms=3.5, label="France (FR)")
+    if "ES" in ts.columns:
+        ax3.plot(ts.index, ts["ES"], marker="d", color="#2a9d8f", lw=1.6, ms=3.5, label="Spain (ES)")
     ax3.axvspan(2019.8, 2021.2, color="#f7b731", alpha=0.25, label="COVID-19 Shock (2020–2021)")
-    ax3.set_title("3. Temporal Coverage (2008–2023)\n(Continuous Annual Reporting)", fontsize=10, fontweight="bold")
+    ax3.set_title("3. Territorial Aviation CO2 Trajectory (2008–2023)\n(Domestic + International Bunkers)", fontsize=10, fontweight="bold")
     ax3.set_xlabel("Year", fontsize=9)
-    ax3.set_ylabel("Thousand Tonnes CO2e", fontsize=9)
+    ax3.set_ylabel("Thousand Tonnes CO2", fontsize=9)
     ax3.grid(True, linestyle=":", alpha=0.5)
     ax3.legend(fontsize=8)
 
@@ -197,39 +251,62 @@ def plot_fig1_coverage(ghg: pd.DataFrame):
     print(f"[OK] Saved {out}")
 
 
-def build_table1(panel: pd.DataFrame):
+def build_tables(panel: pd.DataFrame):
     sub = panel[panel["geo"].isin(CORE_STATES + ["EU27_2020"])].copy()
-    piv_ghg = sub.pivot_table(index="geo", columns="year", values="ghg_ths_t", aggfunc="sum")
+    piv_co2 = sub.pivot_table(index="geo", columns="year", values="co2_terr_ths_t", aggfunc="sum")
     piv_pax = sub.pivot_table(index="geo", columns="year", values="pax_total", aggfunc="sum")
 
-    t1 = pd.DataFrame(index=piv_ghg.index)
+    t1 = pd.DataFrame(index=piv_co2.index)
     for y in [2008, 2019, 2020, 2022, 2023]:
-        t1[f"ghg_{y}_ths_t"] = piv_ghg.get(y)
+        t1[f"co2_terr_{y}_ths_t"] = piv_co2.get(y)
         t1[f"pax_{y}_millions"] = piv_pax.get(y) / 1e6
 
-    t1["ghg_drop_2020_vs_2019_pct"] = ((t1["ghg_2020_ths_t"] - t1["ghg_2019_ths_t"]) / t1["ghg_2019_ths_t"]) * 100
+    t1["co2_drop_2020_vs_2019_pct"] = ((t1["co2_terr_2020_ths_t"] - t1["co2_terr_2019_ths_t"]) / t1["co2_terr_2019_ths_t"]) * 100
     t1["pax_drop_2020_vs_2019_pct"] = ((t1["pax_2020_millions"] - t1["pax_2019_millions"]) / t1["pax_2019_millions"]) * 100
-    t1["ghg_recovery_2023_vs_2019_pct"] = (t1["ghg_2023_ths_t"] / t1["ghg_2019_ths_t"]) * 100
+    t1["co2_recovery_2023_vs_2019_pct"] = (t1["co2_terr_2023_ths_t"] / t1["co2_terr_2019_ths_t"]) * 100
     t1["pax_recovery_2023_vs_2019_pct"] = (t1["pax_2023_millions"] / t1["pax_2019_millions"]) * 100
 
-    out = TAB_DIR / "table1_descriptive_stats.csv"
-    t1.round(2).to_csv(out)
-    print(f"[OK] Saved {out}")
+    out1 = TAB_DIR / "table1_descriptive_stats.csv"
+    t1.round(2).to_csv(out1)
+    print(f"[OK] Saved {out1}")
+
+    p19 = sub[sub["year"] == 2019].copy()
+    audit = p19[["geo", "co2_terr_ths_t", "ghg_terr_ths_t", "ghg_res_ths_t", "pax_total", "cargo_tonnes"]].copy()
+    audit["pax_millions"] = audit["pax_total"] / 1e6
+    audit["kg_co2_per_pax_territorial"] = (audit["co2_terr_ths_t"] * 1e6) / audit["pax_total"]
+    audit["kg_ghg_per_pax_residence"] = (audit["ghg_res_ths_t"] * 1e6) / audit["pax_total"]
+    audit["residence_vs_territorial_ratio"] = audit["ghg_res_ths_t"] / audit["ghg_terr_ths_t"]
+    audit = audit.sort_values("co2_terr_ths_t", ascending=False)
+
+    out1b = TAB_DIR / "table1b_territorial_vs_residence_audit.csv"
+    audit.round(2).to_csv(out1b, index=False)
+    print(f"[OK] Saved {out1b}")
+    print("\n[SANITY CHECK — 2019 TERRITORIAL vs. RESIDENCE ACCOUNTING]:")
+    print(audit[audit["geo"].isin(["EU27_2020", "DE", "ES", "FR", "IE", "NL"])][
+        ["geo", "co2_terr_ths_t", "ghg_res_ths_t", "kg_co2_per_pax_territorial", "kg_ghg_per_pax_residence", "residence_vs_territorial_ratio"]
+    ].round(2).to_string(index=False))
 
 
 def main():
-    if not GHG_FILE.exists() or not PAX_FILE.exists():
-        print("[ERROR] Eurostat CSVs missing. Run 01_get_eurostat_data.py first.")
+    if not TERR_FILE.exists() or not PAX_FILE.exists():
+        print("[ERROR] Eurostat CSVs missing. Run get_eurostat_data.py first.")
         sys.exit(1)
 
-    ghg = load_eurostat_ghg()
+    terr = load_territorial_emissions()
+    res_ghg = load_residence_ghg()
     pax = load_eurostat_pax()
-    panel = ghg.merge(pax, on=["geo", "year"], how="inner")
-    panel.to_csv(PROC_DIR / "eurostat_panel_2008_2023.csv", index=False)
-    print(f"[OK] Saved merged panel ({len(panel)} rows)")
+    cargo = load_eurostat_cargo()
 
-    plot_fig1_coverage(ghg)
-    build_table1(panel)
+    panel = terr.merge(pax, on=["geo", "year"], how="inner")
+    panel = panel.merge(res_ghg, on=["geo", "year"], how="left")
+    panel = panel.merge(cargo, on=["geo", "year"], how="left")
+
+    panel.to_csv(PROC_DIR / "eurostat_panel_2008_2023.csv", index=False)
+    n_cargo = int(panel["cargo_tonnes"].notna().sum())
+    print(f"[OK] Saved merged panel ({len(panel)} rows, {panel['geo'].nunique()} geos, {n_cargo} rows with cargo data)")
+
+    plot_fig1_coverage(terr)
+    build_tables(panel)
 
 
 if __name__ == "__main__":

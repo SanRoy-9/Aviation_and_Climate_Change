@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import itertools
 import json
@@ -25,7 +26,11 @@ WB2_BASE = (
     "1959-2023_01_10-6h-240x121_equiangular_with_poles_conservative.zarr"
 )
 
+START_DATE = "2008-01-01"
+END_DATE = "2022-12-31"
+SAMPLE_STEP_DAYS = 5
 TARGET_LEVELS = (200, 250, 300, 400)
+MAX_WORKERS = 8
 
 
 def sha256_sum(path: Path) -> str:
@@ -42,18 +47,17 @@ def build_resilient_session() -> requests.Session:
         total=6,
         connect=6,
         read=6,
-        backoff_factor=1.5,
+        backoff_factor=1.2,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=("GET",),
     )
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=16, pool_maxsize=16)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
     return session
 
 
 def e_sat_ice_hpa(t_c: xr.DataArray) -> xr.DataArray:
-    """Saturation vapour pressure over hexagonal ice (hPa), Murphy & Koop (2005)."""
     t_k = t_c + 273.15
     ln_e_pa = (
         9.550426
@@ -86,13 +90,11 @@ def download_chunk(session: requests.Session, rel_key: str, dest: Path):
         except Exception:
             if attempt == 4:
                 raise
-            time.sleep(2.0 * attempt)
+            time.sleep(1.5 * attempt)
 
 
 def fetch_wb2_daynight_multilevel() -> xr.Dataset:
     session = build_resilient_session()
-
-    # Preserve TMP_ZARR across runs so interrupted downloads resume automatically
     TMP_ZARR.mkdir(parents=True, exist_ok=True)
 
     print("[INFO] Fetching WeatherBench2 ERA5 metadata over HTTPS ...", flush=True)
@@ -117,16 +119,11 @@ def fetch_wb2_daynight_multilevel() -> xr.Dataset:
 
     ds = xr.open_zarr(TMP_ZARR, consolidated=False)
 
-    # Sample 1st & 15th of each month at BOTH 00:00 UTC (Nighttime) and 12:00 UTC (Daytime)
-    months = pd.date_range("2008-01-01", "2023-01-01", freq="MS")
+    sample_days = pd.date_range(START_DATE, END_DATE, freq=f"{SAMPLE_STEP_DAYS}D")
     target_list = []
-    for m in months:
-        for day_offset in (0, 14):
-            dt_base = m + pd.Timedelta(days=day_offset)
-            for hr in (0, 12):
-                cand = dt_base + pd.Timedelta(hours=hr)
-                if cand <= pd.Timestamp("2023-01-10T18:00"):
-                    target_list.append(cand)
+    for d in sample_days:
+        target_list.append(d + pd.Timedelta(hours=0))
+        target_list.append(d + pd.Timedelta(hours=12))
 
     time_vals = pd.DatetimeIndex(ds["time"].values)
     t_indices = sorted({int(np.abs(time_vals - t).argmin()) for t in target_list})
@@ -150,10 +147,9 @@ def fetch_wb2_daynight_multilevel() -> xr.Dataset:
         "longitude": lon_indices,
     }
 
-    want_vars = [
-        v for v in ["temperature", "specific_humidity", "fraction_of_cloud_cover"]
-        if f"{v}/.zarray" in zmeta
-    ]
+    candidate_vars = ["temperature", "specific_humidity", "fraction_of_cloud_cover", "total_cloud_cover"]
+    want_vars = [v for v in candidate_vars if f"{v}/.zarray" in zmeta]
+    print(f"[INFO] Available ERA5 variables in WB2 store: {want_vars}", flush=True)
 
     chunk_jobs = []
     for var in want_vars:
@@ -168,24 +164,28 @@ def fetch_wb2_daynight_multilevel() -> xr.Dataset:
     total_jobs = len(chunk_jobs)
     already_cached = sum(1 for k in chunk_jobs if (TMP_ZARR / k).exists() and (TMP_ZARR / k).stat().st_size > 0)
     print(
-        f"[INFO] Downloading {total_jobs} European ERA5 chunks "
-        f"({already_cached} already cached, {total_jobs - already_cached} remaining) ...",
+        f"[INFO] Fetching {total_jobs} chunks across {len(t_indices)} timestamps (2008–2022, every {SAMPLE_STEP_DAYS}d, 00Z & 12Z) "
+        f"[{already_cached} cached, {total_jobs - already_cached} to download] ...",
         flush=True,
     )
-    for k, rel_key in enumerate(chunk_jobs, start=1):
-        download_chunk(session, rel_key, TMP_ZARR / rel_key)
-        if k == 1 or k % 25 == 0 or k == total_jobs:
-            print(f"\r  [PROGRESS] {k}/{total_jobs} chunks ({100.0 * k / total_jobs:.0f}%)", end="", flush=True)
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(download_chunk, session, key, TMP_ZARR / key): key for key in chunk_jobs}
+        for fut in as_completed(futures):
+            fut.result()
+            completed += 1
+            if completed == 1 or completed % 50 == 0 or completed == total_jobs:
+                print(f"\r  [PROGRESS] {completed}/{total_jobs} chunks ({100.0 * completed / total_jobs:.0f}%)", end="", flush=True)
     print()
 
-    sub = ds[want_vars].isel(
-        time=t_indices,
-        level=l_indices,
-        latitude=lat_indices,
-        longitude=lon_indices,
-    ).load()
+    sub_vars = {}
+    for var in want_vars:
+        sel_kwargs = {d: idx_map[d] for d in ds[var].dims if d in idx_map}
+        sub_vars[var] = ds[var].isel(**sel_kwargs).load()
     ds.close()
 
+    sub = xr.Dataset(sub_vars)
     if float(sub["longitude"].max()) > 180:
         sub = sub.assign_coords(longitude=((sub["longitude"] + 180) % 360) - 180).sortby("longitude")
 
@@ -196,22 +196,32 @@ def fetch_wb2_daynight_multilevel() -> xr.Dataset:
     data_dict = {"t": t_k, "r": rhi, "q": sub["specific_humidity"]}
     if "fraction_of_cloud_cover" in sub.data_vars:
         data_dict["cc"] = sub["fraction_of_cloud_cover"]
+    if "total_cloud_cover" in sub.data_vars:
+        data_dict["tcc"] = sub["total_cloud_cover"]
 
     out = xr.Dataset(data_dict)
-    out.attrs["source_dataset"] = "Copernicus ERA5 / WeatherBench2 (Day 12Z & Night 00Z, 200–400 hPa)"
+    out.attrs["source_dataset"] = f"Copernicus ERA5 / WeatherBench2 (2008–2022, {SAMPLE_STEP_DAYS}-day 00Z/12Z, 200–400 hPa)"
+    out.attrs["sampling_step_days"] = SAMPLE_STEP_DAYS
     return out
 
 
 def main():
-    print("=" * 65)
-    print("STEP 02: DOWNLOADING EXTENDED DAY/NIGHT MULTI-LEVEL ERA5 DATA")
-    print("=" * 65)
+    print("=" * 68)
+    print("STEP 02: DOWNLOADING MULTI-LEVEL DAY/NIGHT ERA5 DATA (2008–2022)")
+    print("=" * 68)
 
     if OUT_FILE.exists() and OUT_FILE.stat().st_size > 10_000:
-        digest = sha256_sum(OUT_FILE)
-        CHECKSUM_FILE.write_text(f"{digest}  {OUT_FILE.name}\n", encoding="utf-8")
-        print(f"[EXISTS] Found {OUT_FILE.name} ({OUT_FILE.stat().st_size:,} bytes). Skipping download.")
-        return
+        try:
+            with xr.open_dataset(OUT_FILE) as check_ds:
+                n_times = int(check_ds.sizes.get("time", 0))
+            if n_times >= 1500:
+                digest = sha256_sum(OUT_FILE)
+                CHECKSUM_FILE.write_text(f"{digest}  {OUT_FILE.name}\n", encoding="utf-8")
+                print(f"[EXISTS] {OUT_FILE.name} ({n_times} timestamps, {OUT_FILE.stat().st_size:,} bytes) — verified.")
+                return
+            print(f"[REFRESH] Existing file has only {n_times} timestamps; upgrading to {SAMPLE_STEP_DAYS}-day sampling ...")
+        except Exception:
+            print("[REFRESH] Re-downloading ERA5 NetCDF ...")
 
     try:
         ds_out = fetch_wb2_daynight_multilevel()
